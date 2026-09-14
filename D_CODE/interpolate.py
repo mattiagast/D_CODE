@@ -11,6 +11,7 @@ from derivative import dxdt
 
 
 def get_ode_data_noise_free(yt, x_id, dg, ode):
+    
     t = dg.solver.t
     freq = dg.freq
     t_new = t
@@ -240,6 +241,10 @@ def num_dff_tuning(yt, dg, alg, T0=0):
 
 
 def num_diff(yt, dg, alg, T0=0):
+    # Approcio deterministico per la stima delle derivate, due varianti:
+    # TVRegDiff (robusta ma più “ottimizzazione inversa” che finite difference)
+    # spline (fit regolarizzato + derivata analitica)
+
     alpha = num_dff_tuning(yt, dg, alg, T0)
 
     T, B, D = yt.shape
@@ -263,6 +268,10 @@ def num_diff(yt, dg, alg, T0=0):
 
 
 def num_diff_gp(yt, dg, ode):
+    # Approccio probabilistico per la stima delle derivate:
+    # Gaussian Process regression + PCA
+    # Ricostruisce la traiettoria liscia e usa differenza finita su predizioni vicine
+
     t = dg.solver.t
     noise_sigma = dg.noise_sigma
     freq = dg.freq
@@ -352,3 +361,60 @@ def process_data(X, t_obs, basis, method='lstsq'):
             list_b.append(interpolator)
         interpolator_list.append(list_b)
     return interpolator_list
+
+
+
+######################################################################
+
+# Numerical differentiation for a X_list data:
+
+def num_dff_tuning_custom(yt, dc, alg, T0=0):
+    yt0 = dc.xt[int(T0*dc.freq):, :, :] # Dati senza rumore
+    aux = dc.t[int(T0*dc.freq):]
+    dxdt_hat = (yt0[1:, :, :] - yt0[:-1, :, :]) / (aux[1:] - aux[:-1])[:, None, None]
+
+    y_single = yt[:, 0, 0]
+
+    grid = [0, 0.001, 0.01, 0.1, 1, 10, 100, 1000]
+    mse = list()
+    for alpha in grid:
+        if alg == 'tv':
+            res = TVRegDiff(y_single, itern=200, alph=alpha, u0=None, scale='small', dx=dc.dt,
+                            plotflag=False, precondflag=False,
+                            diffkernel='sq', cgtol=1e-3, cgmaxit=100)
+        elif alg == 'spline':
+            res = dxdt(y_single, dc.t, kind="spline", s=alpha)
+        else:
+            raise ValueError
+        mse.append(np.sum((dxdt_hat[:, 0, 0] - res[:-1]) ** 2))
+
+    ind = mse.index(min(mse))
+    return grid[ind]
+
+
+def num_diff_custom(yt, dc, alg, T0=0):
+    # Approcio deterministico per la stima delle derivate, due varianti:
+    # TVRegDiff (robusta ma più “ottimizzazione inversa” che finite difference)
+    # spline (fit regolarizzato + derivata analitica)
+
+    alpha = num_dff_tuning_custom(yt, dc, alg, T0)
+
+    T, B, D = yt.shape
+    
+
+    diff_mat = np.zeros_like(yt)
+    for i in range(B):
+        for j in range(D):
+            y_single = yt[:, i, j]
+            if alg == 'tv':
+                res = TVRegDiff(y_single, itern=200, alph=alpha, u0=None, scale='small', dx=dc.dt,
+                                plotflag=False, precondflag=False,
+                                diffkernel='sq', cgtol=1e-3, cgmaxit=100)
+            elif alg == 'spline':
+                res = dxdt(y_single, dc.t, kind="spline", s=alpha)
+            else:
+                raise ValueError
+
+            diff_mat[:, i, j] = res
+
+    return diff_mat[:-1, :, :]

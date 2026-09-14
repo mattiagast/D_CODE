@@ -146,8 +146,9 @@ def get_building_blocks(building_blocks, programs, parsimony_coefficient, X, par
     # search parameters: 
     n_promising = 15 # number of promising promgrams to select
     n_subprograms = 15 # number of subprograms to extract from each promising program
-    max_length = 6 # maximum length of subprograms
-    min_length = 2 # minimum length of subprograms # !!! DA RIPRISTINARE A 3
+    max_length = 6 # maximum length of subprograms # mattg - 6-2 
+    min_length = 3 # minimum length of subprograms # !!! DA RIPRISTINARE A 3
+    # metti 8-12 per Hill
     # (RMK. the generation of the search can be changed directly at the function call: if gen == ...)
 
     # select the best n_promising programs:
@@ -614,6 +615,7 @@ class SymbolicODE(BaseEstimator):
 
             # At the desired generation, extract the promising building blocks from the generation's programs:
             if gen==3 or gen==5 or gen==10 or gen==15 or gen==19: 
+            # if gen in range(20): # mattg - modifica
                 # print(' ')
                 # print('generation: ', gen)
                 self.building_blocks = get_building_blocks(self.building_blocks, self._programs[gen], parsimony_coefficient, X, params)

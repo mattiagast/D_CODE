@@ -92,3 +92,28 @@ class DataGenerator_p:
 
     def generate_data(self):
         return self.yt
+    
+######################################################################################
+
+# Data object to handle X_list of data as an input instead of an equations.ODE obejct
+class DataCollector:
+    def __init__(self, data, T, freq, n_sample, noise_sigma=True):
+        self.data = data # shape(1+T*freq, n_sample, dim_x) 
+        self.T = T
+        self.freq = freq
+        self.n_sample = n_sample
+        self.noise_sigma = noise_sigma
+
+        self.dt = 1/freq
+        self.t = np.arange(0, T + self.dt, self.dt)
+
+        if not noise_sigma:
+            self.xt = data
+        else:
+            self.xt = data # TODO: Smooth data before differentiate. 
+            # Questa operazione servirebbe per il interpolate.num_dff_tuninig_custom
+            # In pratica prima calcolava il parametro alpha da passare a TVRegDiff 
+            # prendendo il migliore sui dati noise-free. In questo caso i dati noise-free
+            # non ci sono -> Smoothing dei dati.
+            # IDEA: crea un metodo tipo Smoothing-Spline con scelta automatizzata sulla penalità
+

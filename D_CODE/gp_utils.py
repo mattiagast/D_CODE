@@ -43,7 +43,8 @@ def back_X(s):
 def gp_to_pysym_with_coef(est_gp, ode, tol=None, tol2=None, expand=False, promising=False):
     VarDict = ode.get_var_dict()
 
-    # RMK. estensione della funzione originale, per poter prendere in ingresso direttamente il programma genetico, anziché l'intero oggetto SymbolicRegressor
+    # RMK. estensione della funzione originale, per poter prendere in ingresso direttamente il programma
+    # genetico, anziché l'intero oggetto SymbolicRegressor
     if promising:
         f_star = est_gp
     else:
@@ -84,6 +85,7 @@ def gp_to_pysym_with_coef(est_gp, ode, tol=None, tol2=None, expand=False, promis
                 fs = fs.replace(const, '0')
             else:
                 fs = fs.replace(const, 'C')
+
 
     fs = back_X(fs)
     #print(fs) # !!!
@@ -127,7 +129,7 @@ pow3 = make_function(lambda x: x ** 3, 'pow3', 1)
 
 
 def run_gp(X_train, y_train, ode, x_id=0, seed=0, idx=0):
-    config = get_config(ode, x_id)
+    config = get_config(ode, x_id) # Configurazioni di training per Genetic Programming
 
     est_gp = SymbolicRegressor(random_state=seed, **config)
     est_gp.fit(X_train, y_train)
@@ -149,8 +151,13 @@ def run_gp(X_train, y_train, ode, x_id=0, seed=0, idx=0):
 
     building_blocks = get_building_blocks(est_gp, ode)
 
-    additional_bb = list(a_add.args) # additional building blocks
+    # additional_bb = list(a_add.args) # additional building blocks -grg implementaiton
 
+    # mattg
+    # additional_bb = list(sympy_subtrees(a_add, depth=0)) # HillODE
+    additional_bb = list(sympy_subtrees(a_add, depth=1)) # grg-Like
+    # additional_bb = list(sympy_subtrees(a_add, depth=None)) # OscillatingVdpODE
+    
     building_blocks_lambda, function_names = get_building_blocks_lambda(building_blocks, ode, additional_bb, idx=idx)
 
     # print('building blocks:')
@@ -186,6 +193,8 @@ def run_gp_ode(ode_data, X_train, y_train, ode, x_id=0, seed=0):
     # conversione del programma genetico nell'espressione simbolica, ossia la funzione f_hat dell'ODE
     if ode.name == 'SelkovODE' or ode.name == 'SelkovODE_rho' or ode.name == 'SelkovODE_sigma' or ode.name == 'SelkovODE_rho_04' or ode.name == 'SelkovODE_rho_06' or ode.name == 'SelkovODE_rho_09':
         a, a_add = gp_to_pysym_with_coef(est_gp, ode, tol=0.05, tol2=0.01, expand=True)
+    elif ode.name == 'TVLvODE2_d':
+        a, a_add = gp_to_pysym_with_coef(est_gp, ode, tol=0.05, tol2=1e-3)
     else:
         a, a_add = gp_to_pysym_with_coef(est_gp, ode)
     
@@ -196,8 +205,13 @@ def run_gp_ode(ode_data, X_train, y_train, ode, x_id=0, seed=0):
     
     building_blocks = get_building_blocks(est_gp, ode)
 
-    additional_bb = list(a_add.args) # additional building blocks
+    # additional_bb = list(a_add.args) # additional building blocks - grg
 
+    # mattg
+    # additional_bb = list(sympy_subtrees(a_add, depth=0)) # HillODE
+    additional_bb = list(sympy_subtrees(a_add, depth=1)) # grg-Like
+    # additional_bb = list(sympy_subtrees(a_add, depth=None)) # OscillatingVdpODE
+    
     building_blocks_lambda, function_names = get_building_blocks_lambda(building_blocks, ode, additional_bb)
     
     return a, est_gp, building_blocks_lambda, function_names
@@ -271,16 +285,43 @@ def get_building_blocks_lambda(building_blocks, ode, additional_bb, idx=0):
         print(bb_pysym)
 
     # POLYNOMIAL VERSION: 
+    # for bb in additional_bb:
+    #     flag = 1 
+    #     str_bb = str(bb)
+    #     str_bb = str_bb.strip().lstrip('-').strip() # remove '-' sign
+
+    #     for j in range(len(strings)):
+    #         if str_bb == strings[j]:  # filter similar subprograms
+    #             flag = 0
+        
+    #     # filtro lunghezza
+    #     print('len_bb:', len(bb.args))
+    #     if len(bb) > 20:
+    #         flag = 0
+        
+    #     if flag:
+    #         building_blocks_pysym.append(bb)
+    #         print(bb)
+
+
+    MAX_NODES = 20
+
+    def tree_size(expr): # count number of nodes
+        # print('dimension: ', sum(1 for _ in sp.preorder_traversal(expr)))
+        return sum(1 for _ in sp.preorder_traversal(expr))
+
     for bb in additional_bb:
-        flag = 1 
-        str_bb = str(bb)
-        str_bb = str_bb.strip().lstrip('-').strip() # remove '-' sign
-        for j in range(len(strings)):
-            if str_bb == strings[j]:  # filter similar subprograms
-                flag = 0
-        if flag:
+        str_bb = str(bb).strip().lstrip('-').strip()
+
+        is_duplicate = str_bb in strings
+        too_large = tree_size(bb) > MAX_NODES
+        # print('is duplicate:', is_duplicate)
+        # print('too large:', too_large)
+
+        if not is_duplicate and not too_large:
             building_blocks_pysym.append(bb)
             print(bb)
+
 
     # for printing: #building_blocks_pysym = building_blocks_pysym + additional_bb # enlarge with additional building blocks: # for bb in building_blocks_pysym: #     print(bb)
 
@@ -386,3 +427,340 @@ def gp_to_pysym_with_coef_constants(est_gp, ode, tol=None, tol2=None, expand=Fal
     #print(fs)
     f_star_sympy = generator.Generator.infix_to_sympy(fs, VarDict, "simplify")
     return f_star_sympy
+
+
+
+from sympy import Basic, Symbol, Number
+
+def sympy_subtrees(expr, depth=1):
+    """
+    Yield subtrees of expr except leaves (Symbol or Number).
+    
+    Parameters
+    ----------
+    expr : sympy.Basic
+        Expression to explore.
+    depth : int or None
+        0 -> yield the root only
+        1 -> yield the immediate children only
+        None -> recurse fully without yielding the root
+    """
+    if not isinstance(expr, Basic) or isinstance(expr, (Symbol, Number)):
+        return  # foglie: niente
+
+    # ritorna solo l'ultima espressione (molto utile per la divisione che viene splittata)
+    if depth == 0:
+        yield expr
+        return
+
+    # un solo level di split -> consistente con Giorgio
+    if depth == 1:
+        for arg in expr.args:
+            if isinstance(arg, Basic) and not isinstance(arg, (Symbol, Number)):
+                yield arg
+        return
+
+    # depth=None: scendi ricorsivamente senza ritornare della radice
+    for arg in expr.args:
+        if isinstance(arg, Basic) and not isinstance(arg, (Symbol, Number)):
+            yield arg
+            yield from sympy_subtrees(arg, depth=None)
+
+
+
+
+
+
+
+
+
+##################################################################################
+# Symbolic Regression ODE-free implementation
+
+def run_gp_custom(X_train, y_train, dim_x, init_low, init_high, config, seed=0, idx=0):
+
+    est_gp = SymbolicRegressor(random_state=seed, **config)
+    est_gp.fit(X_train, y_train)
+    #print(est_gp._program) # identified function in LISP-form, e.g. neg(mul(X0, add(mul(X0, X0), log(X0))))
+
+    a, a_add = gp_to_pysym_with_coef_custom(est_gp)
+    # try:
+    # except Exception:
+    #     a = None
+
+    print('')
+    print('SR-T model: ', a)
+    print('')
+
+    building_blocks = get_building_blocks_custom(est_gp, dim_x, init_low, init_high)
+
+    additional_bb = list(a_add.args) # additional building blocks
+
+    building_blocks_lambda, function_names = get_building_blocks_lambda_custom(building_blocks, dim_x, additional_bb, idx=idx)
+
+    # print('building blocks:')
+    # for i in range(len(building_blocks)):
+    #     print(building_blocks[i])
+    # print('number of building blocks: ', len(building_blocks))
+    # print(' ')
+
+    return a, est_gp, building_blocks_lambda, function_names
+
+
+
+def get_var():
+    X0 = sympy.Symbol('X0', positive=True)
+    X1 = sympy.Symbol('X1', positive=True)
+    X2 = sympy.Symbol('X2', positive=True)
+    X3 = sympy.Symbol('X3', positive=True)
+    C = sympy.Symbol('C', positive=True)
+    t = sympy.Symbol('t', positive=True)
+
+    VarDict = {
+        'X0': X0,
+        'X1': X1,
+        'X2': X2,
+        'X3': X3,
+        'C': C,
+        't': t,
+    }
+    return VarDict
+
+
+def gp_to_pysym_with_coef_custom(est_gp, tol=None, tol2=None, expand=False, promising=False):
+    
+    VarDict = get_var() # ode.get_var_dict() sostituito con questa
+
+    # RMK. estensione della funzione originale, per poter prendere in ingresso direttamente il programma
+    # genetico, anziché l'intero oggetto SymbolicRegressor
+    if promising:
+        f_star = est_gp
+    else:
+        f_star = est_gp._program
+    
+    f_star_list, var_list, coef_list = parse_program_to_list(f_star.program)
+
+    f_star_infix = generator.Generator.prefix_to_infix(f_star_list, variables=var_list, coefficients=coef_list)
+    f_star_infix2 = f_star_infix.replace('{', '').replace('}', '')
+
+    if f_star_infix2 == f_star_infix:
+        f_star_sympy = generator.Generator.infix_to_sympy(f_star_infix, VarDict, "simplify")
+        return f_star_sympy, f_star_sympy
+
+    f_star_sympy = generator.Generator.infix_to_sympy(f_star_infix2, VarDict, "simplify")
+
+
+    if expand:
+        f_star_sympy = sympy.expand(f_star_sympy)
+
+    f_star_sympy_return = f_star_sympy # espression to extract additional building blocks 
+
+    fs = str(f_star_sympy)
+    #print('')
+    #print(fs) # !!!
+
+    fs = mask_X(fs)
+    if tol is None:
+        fs = re.sub(r'([0-9]*\.[0-9]+|[0-9]+)', 'C', fs)
+    else:
+        consts = re.findall(r'([0-9]*\.[0-9]+|[0-9]+)', fs)
+        for const in consts:
+            if const in ('1', '2', '3', '4', '5', '6', '7', '8', '9'):
+                continue
+            if (float(const) < 1 + tol) and (float(const) > 1 - tol):
+                fs = fs.replace(const, '1')
+            elif (tol2 is not None) and (float(const) < tol2) and (float(const) > -1 * tol2):
+                fs = fs.replace(const, '0')
+            else:
+                fs = fs.replace(const, 'C')
+
+    fs = back_X(fs)
+    #print(fs) # !!!
+    f_star_sympy = generator.Generator.infix_to_sympy(fs, VarDict, "simplify")
+
+    return f_star_sympy, f_star_sympy_return
+
+
+def gp_to_pysym_with_coef_constants_custom(est_gp, tol=None, tol2=None, expand=False, promising=False):
+    VarDict = get_var()  # ode.get_var_dict() sostituito con questa
+
+    # RMK. estensione della funzione originale, per poter prendere in ingresso direttamente il programma genetico,
+    # anziché l'intero oggetto SymbolicRegressor
+    if promising:
+        f_star = est_gp
+    else:
+        f_star = est_gp._program
+    
+    f_star_list, var_list, coef_list = parse_program_to_list(f_star.program)
+    # print(f_star_list)
+    # print(var_list)
+    # print(coef_list)
+
+    f_star_infix = generator.Generator.prefix_to_infix(f_star_list, variables=var_list, coefficients=coef_list)
+    f_star_infix2 = f_star_infix.replace('{', '').replace('}', '')
+    if f_star_infix2 == f_star_infix:
+        f_star_sympy = generator.Generator.infix_to_sympy(f_star_infix, VarDict, "simplify")
+        return f_star_sympy
+
+    f_star_sympy = generator.Generator.infix_to_sympy(f_star_infix2, VarDict, "simplify")
+
+    if expand:
+        f_star_sympy = sympy.expand(f_star_sympy)
+
+    fs = str(f_star_sympy)
+    #print(fs)
+
+    fs = mask_X(fs)
+    if tol:
+        consts = re.findall(r'([0-9]*\.[0-9]+|[0-9]+)', fs)
+        for const in consts:
+            if const in ('1', '2', '3', '4', '5', '6', '7', '8', '9'):
+                continue
+            if (float(const) < 1 + tol) and (float(const) > 1 - tol):
+                fs = fs.replace(const, '1')
+            elif (tol2 is not None) and (float(const) < tol2) and (float(const) > -1 * tol2):
+                fs = fs.replace(const, '0')
+    fs = back_X(fs)
+    #print(fs)
+    f_star_sympy = generator.Generator.infix_to_sympy(fs, VarDict, "simplify")
+    return f_star_sympy
+
+
+def get_building_blocks_custom(est_gp, dim_x, init_low, init_high):
+    # filter constant and similar subprograms
+
+    subprograms = est_gp.building_blocks
+
+
+    # STANDARD VERSION:
+    tol = 1e-2
+
+    # POLYNOMIAL VERSION:
+    # !!! imposto tol = 1e-3 perché funzioni nel caso selkov, verificare se accettabile
+    #tol = 1e-3 # tolerance for filtering similar subprograms  #testing_range = [0.3, 0.7] # range of x values for testing similarity
+
+    N = 10
+    #dim_x = ode.dim_x
+    
+    if dim_x == 1:
+        x_samples = np.random.uniform(init_low, init_high, N).reshape(-1, 1) 
+    else:
+        x_samples = np.empty((dim_x, N))
+        for i in range(dim_x):
+            x_samples[i, :] = np.random.uniform(init_low[i], init_high[i], N) 
+    #print(x_samples)
+    
+    subprograms_filtered = []
+    #x_samples = np.linspace(testing_range[0], testing_range[1], 10).reshape(-1, 1) 
+    f_samples = []
+    for i in range(len(subprograms)):
+
+        flag = 1
+        f_hat = subprograms[i].execute 
+        aux = f_hat(x_samples) #print(f_hat(x_samples))2 
+
+        all_equal = np.all(np.diff(aux) == 0) # filter constant subprograms
+        if all_equal:
+            flag = 0
+
+        if flag:
+            for j in range(len(f_samples)):
+                if root_mean_squared_error(aux, f_samples[j]) < tol: # filter similar subprograms
+                    flag = 0
+
+        if flag:
+            f_samples.append(aux)
+            subprograms_filtered.append(subprograms[i])
+
+    return subprograms_filtered
+
+
+def get_building_blocks_lambda_custom(building_blocks, dim_x, additional_bb, idx=0):
+
+    # print('building blocks:')
+    # for i in range(len(building_blocks)):
+    #     print(building_blocks[i])
+    # print('number of building blocks: ', len(building_blocks))
+    # print(' ')
+
+
+    print('building blocks:') # pysym version
+    building_blocks_pysym = []
+    strings = []
+    for bb in building_blocks:
+        bb_pysym = gp_to_pysym_with_coef_constants_custom(bb, promising=True) 
+        building_blocks_pysym.append(bb_pysym)
+        strings.append(str(bb_pysym))
+        print(bb_pysym)
+
+    # POLYNOMIAL VERSION: 
+    for bb in additional_bb:
+        flag = 1 
+        str_bb = str(bb)
+        str_bb = str_bb.strip().lstrip('-').strip() # remove '-' sign
+        for j in range(len(strings)):
+            if str_bb == strings[j]:  # filter similar subprograms
+                flag = 0
+        if flag:
+            building_blocks_pysym.append(bb)
+            print(bb)
+
+    # for printing: #building_blocks_pysym = building_blocks_pysym + additional_bb # enlarge with additional building blocks: # for bb in building_blocks_pysym: #     print(bb)
+
+    #print(building_blocks_pysym)
+    print(' ')
+    print('number of building blocks: ', len(building_blocks_pysym))
+    print(' ')
+    building_blocks_str = [str(expr) for expr in building_blocks_pysym]
+    #print(building_blocks_str)
+
+    building_blocks_lambda = []
+
+    
+    if dim_x == 1: # todo: trovare un modo smart per evitare l'if
+        X0 = sp.symbols('X0')
+        for bb in building_blocks_pysym:
+            bb_lambda = sp.lambdify(X0, bb, modules='numpy')
+            building_blocks_lambda.append(bb_lambda)
+        function_names=[lambda X0, i=i: building_blocks_str[i] for i in range(len(building_blocks_str))]    
+    elif dim_x == 2:
+        if idx == 0:
+            X0, X1 = sp.symbols('X0 X1')
+            for bb in building_blocks_pysym:
+                bb_lambda = sp.lambdify((X0, X1), bb, modules='numpy')
+                building_blocks_lambda.append(bb_lambda)
+            function_names=[lambda X0, X1, i=i: building_blocks_str[i] for i in range(len(building_blocks_str))]
+        else:
+            X0, X1 = sp.symbols('X0 X1')
+            for bb in building_blocks_pysym:
+                bb_lambda = sp.lambdify((X1, X0), bb, modules='numpy')
+                building_blocks_lambda.append(bb_lambda)
+            function_names=[lambda X1, X0, i=i: building_blocks_str[i] for i in range(len(building_blocks_str))]
+    elif dim_x == 3:
+        if idx == 0:
+            X0, X1, X2 = sp.symbols('X0 X1 X2')
+            for bb in building_blocks_pysym:
+                bb_lambda = sp.lambdify((X0, X1, X2), bb, modules='numpy')
+                building_blocks_lambda.append(bb_lambda)
+            function_names=[lambda X0, X1, X2, i=i: building_blocks_str[i] for i in range(len(building_blocks_str))]
+        else:
+            X0, X1, X2 = sp.symbols('X0 X1 X2')
+            for bb in building_blocks_pysym:
+                bb_lambda = sp.lambdify((X1, X0, X2), bb, modules='numpy')
+                building_blocks_lambda.append(bb_lambda)
+            function_names=[lambda X1, X0, X2, i=i: building_blocks_str[i] for i in range(len(building_blocks_str))]
+    elif dim_x == 4:
+        if idx == 0:
+            X0, X1, X2, X3 = sp.symbols('X0 X1 X2 X3')
+            for bb in building_blocks_pysym:
+                bb_lambda = sp.lambdify((X0, X1, X2, X3), bb, modules='numpy')
+                building_blocks_lambda.append(bb_lambda)
+            function_names=[lambda X0, X1, X2, X3, i=i: building_blocks_str[i] for i in range(len(building_blocks_str))]
+        else:
+            X0, X1, X2, X3 = sp.symbols('X0 X1 X2 X3')
+            for bb in building_blocks_pysym:
+                bb_lambda = sp.lambdify((X1, X0, X2, X3), bb, modules='numpy')
+                building_blocks_lambda.append(bb_lambda)
+            function_names=[lambda X1, X0, X2, X3, i=i: building_blocks_str[i] for i in range(len(building_blocks_str))]
+            
+    return building_blocks_lambda, function_names

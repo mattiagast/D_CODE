@@ -42,10 +42,20 @@ def get_ode(ode_name, param):
         ode = OscillatingLogisticODE(param)
     elif ode_name == 'HillODE':
         ode = HillODE(param)
+    elif ode_name == 'HillODE_par_k':
+        ode = HillODE_par_k(param)
     elif ode_name == 'SirODE':
         ode = SirODE(param)
     elif ode_name == 'LvODE':
         ode = LvODE(param)
+    elif ode_name == 'TVLvODE':
+        ode = TVLvODE(param)
+    elif ode_name == 'TVLvODE2':
+        ode = TVLvODE2(param)
+    elif ode_name == 'TVLvODE2_d':
+        ode = TVLvODE2_d(param)
+    elif ode_name == 'TVSelkovODE':
+        ode = TVSelkovODE(param)
     elif ode_name == 'ThetaModel':
         ode = ThetaModel(param)
     elif ode_name == 'LIF':
@@ -86,8 +96,26 @@ def get_ode(ode_name, param):
         ode = Lorenz_beta(param)
     elif ode_name == 'FracODE':
         ode = FracODE(param)
+    elif ode_name == 'FracODE_par_rho':
+        ode = FracODE_par_rho(param)
+    elif ode_name == 'OscilVdpODE':
+        ode = OscilVdpODE(param)
+    elif ode_name == 'OscilVdpODE_par_w':
+        ode = OscilVdpODE_par_w(param)
+    elif ode_name == 'OscilVdpODE_par_w_mu':
+        ode = OscilVdpODE_par_w_mu(param)
+    elif ode_name == 'OscilVdpODE_par_w_a':
+        ode = OscilVdpODE_par_w_a(param)
     elif ode_name == 'TrigonometricODE':
         ode = TrigonometricODE(param)
+    elif ode_name == 'TVVdpODE':
+        ode = TVVdpODE(param)
+    elif ode_name == 'TVVdpODE2':
+        ode = TVVdpODE2(param)
+    elif ode_name == 'ReactionDiffusion':
+        ode = ReactionDiffusion(param)
+    elif ode_name == 'DoubleGyre':
+        ode = DoubleGyre(param)
     else:
         raise ValueError('{} is not a supported ode.'.format(ode_name))
     return ode
@@ -98,6 +126,7 @@ def get_var_pos():
     X2 = sympy.Symbol('X2', positive=True)
     X3 = sympy.Symbol('X3', positive=True)
     C = sympy.Symbol('C', positive=True)
+    t = sympy.Symbol('t', positive=True)
 
     VarDict = {
         'X0': X0,
@@ -105,6 +134,7 @@ def get_var_pos():
         'X2': X2,
         'X3': X3,
         'C': C,
+        't': t,
     }
     return VarDict
 
@@ -353,9 +383,12 @@ class VdpODE(ODE):
     def __init__(self, param=None):
         super().__init__(2, param)
         self.mu = self.param[0]
-        self.init_high = 1.
+        self.init_high = [1., 1. ]
+        self.init_low = [0., 0. ]
         if not self.has_coef:
             self.T = 25
+
+        self.name = 'VdpODE'
 
     def get_default_param(self):
         return [1.]
@@ -445,7 +478,7 @@ class GompertzODE(ODE):
         self.a, self.b = self.param
         self.init_high = 0.01
         if self.has_coef:
-            self.T = 8 # 5 # 8 # 4
+            self.T = 5 # 8 # 5 # 8 # 4
         else:
             self.T = 8 # 5
         self.name = 'GompertzODE'
@@ -483,7 +516,7 @@ class GompertzODE_par_a(ODE):
 
     def __init__(self, param=None):
         super().__init__(2, param)
-        self.b = self.param
+        self.b = self.param[0]
 
         # initialization range for parameters: x: [0, 0.01], a: [1, 2] 
         self.init_high = [0.01, 2.0] 
@@ -531,7 +564,7 @@ class GompertzODE_par_b(ODE):
 
     def __init__(self, param=None):
         super().__init__(2, param)
-        self.a = self.param
+        self.a = self.param[0]
 
         # initialization range for parameters: x: [0, 0.01], a: [1, 2] 
         self.init_high = [0.01, 2.0] 
@@ -806,8 +839,13 @@ class HillODE(ODE):
     def __init__(self, param=None):
         super().__init__(2, param)
         self.n, self.k, self.ka, self.ky = self.param
-        self.init_high = 10.
-        self.name = 'HillODE'
+
+        self.init_low = [0., 0.]
+        self.init_high = [10., 10.]
+
+        self.name = "HillODE"
+        self.T = 15
+        self.std_base = 0.5831910543183362
 
     def _dx_dt(self, X, Y):
         dxdt = self.k * np.power(Y, self.n) / (self.ka + np.power(Y, self.n))
@@ -815,7 +853,7 @@ class HillODE(ODE):
         return [dxdt, dydt]
 
     def get_default_param(self):
-        return 1., 1., 1., 1.
+        return 2.8, 1.0, 0.5, 0.1
 
     def get_expression(self):
         var_dict = self.get_var_dict()
@@ -833,6 +871,55 @@ class HillODE(ODE):
     def functional_theta(self, theta):
         assert len(theta) == 4
         new_ode = HillODE(theta)
+        return new_ode.dx_dt_batch
+    
+
+class HillODE_par_k(ODE):
+    """
+    Hill_equation_(biochemistry)
+    https://en.wikipedia.org/wiki/Hill_equation_(biochemistry)
+    dim_k = 1
+    """
+
+    def __init__(self, param=None):
+        super().__init__(3, param)
+        self.n, self.ka, self.ky = self.param
+
+        self.init_low = [0., 0., 2]
+        self.init_high = [10., 10., 1]
+
+        self.name = "HillODE_par_k"
+        self.T = 15
+        self.std_base = 0.5831910543183362
+
+    def _dx_dt(self, X, Y, k):
+        dxdt = k * np.power(Y, self.n) / (self.ka + np.power(Y, self.n))
+        dydt = -1 * self.ky * Y
+        dkdt = 0
+        return [dxdt, dydt, dkdt]
+
+    def get_default_param(self):
+        return 2.8, 0.5, 0.1
+
+    def get_expression(self):
+        var_dict = self.get_var_dict()
+        X0 = var_dict['X0']
+        X1 = var_dict['X1']
+        X2 = var_dict['X2']
+        C = var_dict['C']
+        if self.has_coef:
+            eq1 = X2 * sympy.Pow(X1, C) / (C + sympy.Pow(X1, C))
+            eq2 = -1 * C * X1
+            eq3 = 0
+        else:
+            eq1 = X2 * X1 / (C + X1)
+            eq2 = -1 * X1
+            eq3 = 0
+        return [eq1, eq2, eq3]
+
+    def functional_theta(self, theta):
+        assert len(theta) == 3
+        new_ode = HillODE_par_k(theta)
         return new_ode.dx_dt_batch
 
 
@@ -886,8 +973,10 @@ class LvODE(ODE):
     def __init__(self, param=None):
         super().__init__(2, param)
         self.a, self.c, self.gamma = self.param
-        self.init_high = 1.
+        self.init_high = [1., 1.]
+        self.init_low = [0., 0.]
         self.T = 15
+        self.name = 'LvODE'
 
     def _dx_dt(self, X, Y):
         dxdt = self.a * X - self.a * X * Y
@@ -913,6 +1002,150 @@ class LvODE(ODE):
     def functional_theta(self, theta):
         assert len(theta) == 3
         new_ode = LvODE(theta)
+        return new_ode.dx_dt_batch
+    
+
+class TVLvODE(ODE):
+    """
+    Time varying Lotka-Volterra equations inspired by EKF-SINDy test-case
+    https://en.wikipedia.org/wiki/Lotka-Volterra_equations
+    EKF-SINDy: https://arxiv.org/abs/2411.04842
+    """
+
+    def __init__(self, param=None):
+        super().__init__(3, param)
+        self.a, self.b, self.c, self.d = self.param
+        self.init_high = [20., 20., 0.]
+        self.init_low = [5., 5., 0.]
+        self.T = 150
+        self.std_base = 8.743084594979782 # NOTE: calcolato come RMSE di dX_list su 200 curve noise-free
+        self.name = 'TVLvODE'
+
+    def _dx_dt(self, X, Y, t):
+        res = ((self.b + 0.01) if t > 50 else self.b) * X * Y      # Gestire l'impulso
+        dxdt = (self.a + 0.2*np.sin(0.04*t))* X + res
+        dydt = self.c * Y + (self.d + 0.01/150 * t) * X * Y
+        dtdt = 1
+        return [dxdt, dydt, dtdt]
+
+    def get_default_param(self):
+        return 1., -0.1, -1.5, 0.075
+
+    def get_expression(self):
+        var_dict = self.get_var_dict()
+        X0 = var_dict['X0']
+        X1 = var_dict['X1']
+        X2 = var_dict['X2']
+        C = var_dict['C']
+        if self.has_coef:
+            eq1 = (C + C*sympy.sin(C*X2)) * X0 + (C + C*sympy.Heaviside(X2-C)) * X0 * X1
+            eq2 = C * X1 + (C + C*X2) * X0 * X1
+            eq3 = 1
+        else:
+            eq1 = (C + C*sympy.sin(C*X2)) * X0 + (C + C*sympy.Heaviside(X2-C)) * X0 * X1
+            eq2 = C * X1 + (C + C*X2) * X0 * X1
+            eq3 =  1
+        return [eq1, eq2, eq3]
+
+    def functional_theta(self, theta):
+        assert len(theta) == 4
+        new_ode = TVLvODE(theta)
+        return new_ode.dx_dt_batch
+    
+
+class TVLvODE2(ODE):
+    """
+    Time varying Lotka-Volterra equations inspired by EKF-SINDy test-case modified for the problem
+    https://en.wikipedia.org/wiki/Lotka-Volterra_equations
+    EKF-SINDy: https://arxiv.org/abs/2411.04842
+    """
+
+    def __init__(self, param=None):
+        super().__init__(3, param)
+        self.a, self.b, self.c, self.d = self.param
+        self.init_high = [20., 20., 0.]     
+        self.init_low = [5., 5., 0.]
+        self.T = 50 # 100
+        self.std_base = 9.000675159676526 # NOTE: calcolato come RMSE di dX_list su 200 curve noise-free
+        self.name = 'TVLvODE2'
+
+    def _dx_dt(self, X, Y, t):
+        imp = ((self.b + 0.01) if t > 50 else self.b) * X * Y      # Gestire l'impulso
+        dxdt = (self.a + 0.4*np.sin(5*t))* X + imp
+        dydt = self.c * Y + self.d * X * Y
+        dtdt = 1
+        return [dxdt, dydt, dtdt]
+
+    def get_default_param(self):
+        return 1., -0.1, -1.5, 0.075
+
+    def get_expression(self):
+        var_dict = self.get_var_dict()
+        X0 = var_dict['X0']
+        X1 = var_dict['X1']
+        X2 = var_dict['X2']
+        C = var_dict['C']
+        if self.has_coef:
+            eq1 = (C + C*sympy.sin(C*X2)) * X0 + (C + C*sympy.Heaviside(X2-C)) * X0 * X1
+            eq2 = C * X1 + C * X0 * X1
+            eq3 = 1
+        else:
+            eq1 = (C + C*sympy.sin(C*X2)) * X0 + (C + C*sympy.Heaviside(X2-C)) * X0 * X1
+            eq2 = C * X1 + C * X0 * X1
+            eq3 =  1
+        return [eq1, eq2, eq3]
+
+    def functional_theta(self, theta):
+        assert len(theta) == 4
+        new_ode = TVLvODE2(theta)
+        return new_ode.dx_dt_batch
+    
+
+class TVLvODE2_d(ODE):
+    """
+    Time varying Lotka-Volterra equations inspired by EKF-SINDy test-case modfied for the problem
+    https://en.wikipedia.org/wiki/Lotka-Volterra_equations
+    EKF-SINDy: https://arxiv.org/abs/2411.04842
+    """
+
+    def __init__(self, param=None):
+        super().__init__(3, param)
+        self.a, self.b, self.c, self.d = self.param
+        self.init_high = [20., 20., 0.] # [20., 20., 0.]    
+        self.init_low = [5., 5., 0.] # [5., 5., 0.]
+        self.T = 100
+        self.std_base = 9.738077440682273 # NOTE: calcolato come RMSE di dX_list su 200 curve noise-free
+        self.name = 'TVLvODE2_d'
+
+    def _dx_dt(self, X, Y, t):
+        imp = ((self.b + 0.01) if t > 50 else self.b) * X * Y      # Gestire l'impulso
+        dxdt = (self.a + 0.4*np.sin(5*t) * (1 / (1 + np.exp(-1 * (t - 20)))) )* X + imp
+        dydt = self.c * Y + self.d * X * Y
+        dtdt = 1
+        return [dxdt, dydt, dtdt]
+
+    def get_default_param(self):
+        return 1., -0.1, -1.5, 0.075
+
+    def get_expression(self):
+        var_dict = self.get_var_dict()
+        X0 = var_dict['X0']
+        X1 = var_dict['X1']
+        X2 = var_dict['X2']
+        C = var_dict['C']
+        if self.has_coef:
+            eq1 = (C + C*sympy.sin(C*X2)) * X0 + (C + C*sympy.Heaviside(X2-C)) * X0 * X1
+            eq2 = C * X1 + C * X0 * X1
+            eq3 = 1
+        else:
+            eq1 = (C + C*sympy.sin(C*X2)) * X0 + (C + C*sympy.Heaviside(X2-C)) * X0 * X1
+            eq2 = C * X1 + C * X0 * X1
+            eq3 =  1
+        return [eq1, eq2, eq3]
+
+    def functional_theta(self, theta):
+        assert len(theta) == 4
+        new_ode = TVLvODE2_d(theta)
         return new_ode.dx_dt_batch
 
 
@@ -1494,13 +1727,62 @@ class OscillatingSelkovODE_d(ODE):
         assert len(theta) == 2
         new_ode = OscillatingSelkovODE_d(theta)
         return new_ode.dx_dt_batch
+    
 
+class TVSelkovODE(ODE):
+    """
+    Time varying Selkov model inspired by EKF-SINDy test-case
+    https://services.math.duke.edu/ode-book/xppaut/ch4-selkov.pdf
+    EKF-SINDy: https://arxiv.org/abs/2411.04842
+    """
+    def __init__(self, param=None):
+        super().__init__(3, param)
+        self.rho1, self.rho2, self.sigma = self.param
+        self.has_coef = True
+        self.init_high = [0.1, 0.1, 0.]       # TODO: definire per il caso specifico finale
+        self.init_low = [0., 0., 0.]
+        self.name = 'TVSelkovODE'
+        self.std_base = 0.5641061           # TODO: definire per il caso specifico finale
+        self.T = 100 # 300 !!!!
+
+    def get_default_param(self):
+        return 0.95, 0.60, 0.01
+
+    def _dx_dt(self, x, y, t):
+
+        sig = -(self.rho1-self.rho2)/(1+np.exp(-0.5*(t-40)))
+        dxdt = self.rho1 + sig - self.sigma * x - x * y * y
+        dydt = -1 * y + self.sigma * x + x * y * y 
+        dtdt = 1
+        return [dxdt, dydt, dtdt]
+
+    def get_expression(self):
+        var_dict = self.get_var_dict()
+        X0 = var_dict['X0']
+        X1 = var_dict['X1']
+        X2 = var_dict['X2']
+        C = var_dict['C']
+
+        if self.has_coef:
+            eq1 = C - C * X0 - X0 * X1 * X1
+            eq2 = -1 * X1 + C * X0 + X0 * X1 * X1
+            eq3 = 1
+        else:
+            eq1 = 1 - X0 - X0 * X1 * X1
+            eq2 = -1 * X1 + X0 + X0 * X1 * X1
+            eq3 = 1
+        return [eq1, eq2, eq3]
+
+    def functional_theta(self, theta):
+        assert len(theta) == 3
+        new_ode = TVSelkovODE(theta)
+        return new_ode.dx_dt_batch
 
 
 class FracODE(ODE):
     def __init__(self, param=None):
         super().__init__(2, param)
-        self.rho = self.param
+        self.rho = self.param[0]
         self.has_coef = True
         self.name = 'FracODE'
         self.std_base = 2.5388
@@ -1532,6 +1814,50 @@ class FracODE(ODE):
     def functional_theta(self, theta):
         assert len(theta) == 2
         new_ode = FracODE(theta)
+        return new_ode.dx_dt_batch
+
+
+class FracODE_par_rho(ODE):
+    """
+    dim_k = 1
+    """
+    def __init__(self, param=None):
+        super().__init__(3, param)
+        self.has_coef = True
+        self.name = 'FracODE_par_rho'
+        self.std_base = 2.5388
+        self.T = 3
+        self.init_high = [1., 1., 2.]
+        self.init_low = [0.8, 0.8, 1.]
+
+    def get_default_param(self):
+        return None
+
+    def _dx_dt(self, x, y, r):
+        dxdt = x ** 2 / (y + r)
+        dydt = 1
+        drdt = 0 * x * y * r
+        return [dxdt, dydt, drdt]
+
+    def get_expression(self):
+        var_dict = self.get_var_dict()
+        X0 = var_dict['X0']
+        X1 = var_dict['X1']
+        X2 = var_dict['X2']
+        C = var_dict['C']
+        if self.has_coef:
+            eq1 = X0 ** C / (X1 + X2), X0 ** 2 / (X1 + X2), X0 ** 2 / (X1 + X2)
+            eq2 = C
+            eq3 = 0 * X0 * X1 * X2
+        else:
+            eq1 = X0 ** 2 / (X1 + X2)
+            eq2 = C
+            eq3 = 0 * X0 * X1 * X2
+        return [eq1, eq2, eq3]
+
+    def functional_theta(self, theta):
+        assert len(theta) == 0
+        new_ode = FracODE_par_rho(theta)
         return new_ode.dx_dt_batch
 
 
@@ -1819,8 +2145,218 @@ class Lorenz_beta(ODE):
         assert len(theta) == 2
         new_ode = Lorenz_beta(theta)
         return new_ode.dx_dt_batch
+
+
+
+class OscilVdpODE(ODE):
+    """
+    Modified Van der Pol system with a oscillating forcing term.
+    Fictitius ODE to test Simbolic-SINDy
+    """
+
+    def __init__(self, param=None):
+        super().__init__(2, param)
+        self.mu, self.A, self.omega = self.param
+
+        self.init_high = [1., 1.]
+        self.init_low = [0., 0.]
+
+        self.has_coef = True
+        self.T = 10
+        self.positive = False
+        
+        self.name = 'OscilVdpODE'
+        self.std_base = 1.366500494994911
+
+    def _dx_dt(self, X, Y):
+        dxdt = self.mu * (1 - Y**2) * X - Y +  self.A * np.sin(self.omega * Y**2)
+        dydt = X 
+        return [dxdt, dydt]
+
+    def get_default_param(self):
+        return 1., 1., 1.
+
+    def get_expression(self):
+        var_dict = self.get_var_dict()
+        X0 = var_dict['X0']
+        X1 = var_dict['X1']
+        C = var_dict['C']
+        if self.has_coef:
+            eq1 = C * (1 - X1**2) * X0 - X1 + C * sympy.sin(C* X1**2) 
+            eq2 = X0
+        else:
+            eq1 = (1 - X1**2) * X0 - X1 + sympy.sin(X1**2) 
+            eq2 = X0 
+        return [eq1, eq2]
+
+    def functional_theta(self, theta):
+        assert len(theta) == 3
+        new_ode = OscilVdpODE(theta)
+        return new_ode.dx_dt_batch
     
 
+class OscilVdpODE_par_w(ODE):
+    """
+    Modified Van der Pol system with a oscillating forcing term.
+    Fictitius ODE to test Simbolic-SINDy
+    dim_k = 1
+    """
+
+    def __init__(self, param=None):
+        super().__init__(3, param)
+        self.mu, self.A = self.param
+
+        self.init_high = [1., 1., np.pi]
+        self.init_low = [0., 0., 1.]
+
+        self.has_coef = True
+        self.T = 10
+        self.positive = False
+        
+        self.name = 'OscilVdpODE_par_w'
+        self.std_base = 1.366500494994911
+
+    def _dx_dt(self, X, Y, Z):
+        dxdt = self.mu * (1 - Y**2) * X - Y +  self.A * np.sin(Z * Y**2)
+        dydt = X 
+        dzdt = 0
+        return [dxdt, dydt, dzdt]
+
+    def get_default_param(self):
+        return 1., 1.
+
+    def get_expression(self):
+        var_dict = self.get_var_dict()
+        X0 = var_dict['X0']
+        X1 = var_dict['X1']
+        X2 = var_dict['X2']
+        C = var_dict['C']
+        if self.has_coef:
+            eq1 = C * (1 - X1**2) * X0 - X1 + C * sympy.sin( X2* X1**2) 
+            eq2 = X0
+            eq3 = 0
+        else:
+            eq1 = (1 - X1**2) * X0 - X1 + sympy.sin(X2 * X1**2) 
+            eq2 = X0 
+            eq3 = 0
+        return [eq1, eq2, eq3]
+
+    def functional_theta(self, theta):
+        assert len(theta) == 2
+        new_ode = OscilVdpODE_par_w(theta)
+        return new_ode.dx_dt_batch
+    
+
+class OscilVdpODE_par_w_mu(ODE):
+    """
+    Modified Van der Pol system with a oscillating forcing term.
+    Fictitius ODE to test Simbolic-SINDy
+    dim_k = 2
+    """
+
+    def __init__(self, param=None):
+        super().__init__(4, param)
+        self.A = self.param[0]
+
+        self.init_high = [1., 1., np.pi, 2]
+        self.init_low = [0., 0., 1., 0.5]
+
+        self.has_coef = True
+        self.T = 10
+        self.positive = False
+        
+        self.name = 'OscilVdpODE_par_w_mu'
+        self.std_base = 1.366500494994911
+
+    def _dx_dt(self, X, Y, Z, m):
+        dxdt = m * (1 - Y**2) * X - Y +  self.A * np.sin(Z * Y**2)
+        dydt = X 
+        dzdt = 0
+        dmdt = 0
+        return [dxdt, dydt, dzdt, dmdt]
+
+    def get_default_param(self):
+        return 1.
+
+    def get_expression(self):
+        var_dict = self.get_var_dict()
+        X0 = var_dict['X0']
+        X1 = var_dict['X1']
+        X2 = var_dict['X2']
+        X3 = var_dict['X3']
+        C = var_dict['C']
+        if self.has_coef:
+            eq1 = X3 * (1 - X1**2) * X0 - X1 + C * sympy.sin( X2* X1**2) 
+            eq2 = X0
+            eq3 = 0
+            eq4 = 0
+        else:
+            eq1 = X3 * (1 - X1**2) * X0 - X1 + sympy.sin(X2 * X1**2) 
+            eq2 = X0 
+            eq3 = 0
+            eq4 = 0
+        return [eq1, eq2, eq3, eq4]
+
+    def functional_theta(self, theta):
+        assert len(theta) == 1
+        new_ode = OscilVdpODE_par_w_mu(theta)
+        return new_ode.dx_dt_batch
+
+
+class OscilVdpODE_par_w_a(ODE):
+    """
+    Modified Van der Pol system with a oscillating forcing term.
+    Fictitius ODE to test Simbolic-SINDy
+    dim_k = 2
+    """
+
+    def __init__(self, param=None):
+        super().__init__(4, param)
+        self.mu = self.param[0]
+
+        self.init_high = [1., 1., np.pi, 1]
+        self.init_low = [0., 0., 1., 0]
+
+        self.has_coef = True
+        self.T = 10
+        self.positive = False
+        
+        self.name = 'OscilVdpODE_par_w_a'
+        self.std_base = 1.366500494994911
+
+    def _dx_dt(self, X, Y, Z, A):
+        dxdt = self.mu * (1 - Y**2) * X - Y +  A * np.sin(Z * Y**2)
+        dydt = X 
+        dzdt = 0
+        dAdt = 0
+        return [dxdt, dydt, dzdt, dAdt]
+
+    def get_default_param(self):
+        return 1.
+
+    def get_expression(self):
+        var_dict = self.get_var_dict()
+        X0 = var_dict['X0']
+        X1 = var_dict['X1']
+        X2 = var_dict['X2']
+        X3 = var_dict['X3']
+        C = var_dict['C']
+        if self.has_coef:
+            eq1 = C * (1 - X1**2) * X0 - X1 + X3 * sympy.sin( X2* X1**2) 
+            eq2 = X0
+            eq3 = 0
+            eq4 = 0
+        else:
+            eq1 = (1 - X1**2) * X0 - X1 + X3 * sympy.sin(X2 * X1**2) 
+            eq2 = X0 
+            eq3 = 0
+            eq4 = 0
+        return [eq1, eq2, eq3, eq4]
+
+    def functional_theta(self, theta):
+        assert len(theta) == 1
+        new_ode = OscilVdpODE_par_w_a(theta)
+        return new_ode.dx_dt_batch
 
 
 class RealODEPlaceHolder:
@@ -1920,3 +2456,188 @@ class TrigonometricODE(ODE):
         return new_ode.dx_dt_batch
 
 
+class TVVdpODE(ODE):
+    """
+    Time varying van der Pol equations
+    """
+
+    def __init__(self, param=None):
+        super().__init__(3, param)
+        self.mu, self.A, self.w0 = self.param
+        self.init_high = [2., 2., 0.]    
+        self.init_low = [0., 0., 0.]
+        self.T = 150
+        self.std_base = 5.269730472894847 # NOTE: calcolato come RMSE di dX_list su 200 curve noise-free
+        self.name = 'TVVdpODE'
+        self.positive=False
+
+    def _dx_dt(self, X, Y, t):
+        dxdt = self.mu * (1 - Y**2) * X - Y + self.A * np.cos((self.w0 * t) * t)
+        dydt = X
+        dtdt = 1
+        return [dxdt, dydt, dtdt]
+
+    def get_default_param(self):
+        return 5., 10., 0.02
+
+    def get_expression(self):
+        var_dict = self.get_var_dict()
+        X0 = var_dict['X0']
+        X1 = var_dict['X1']
+        X2 = var_dict['X2']
+        C = var_dict['C']
+        if self.has_coef:
+            eq1 = (C + C*sympy.sin(C*X2)) * X0 + (C + C*sympy.Heaviside(X2-C)) * X0 * X1
+            eq2 = C * X1 + C * X0 * X1
+            eq3 = 1
+        else:
+            eq1 = (C + C*sympy.sin(C*X2)) * X0 + (C + C*sympy.Heaviside(X2-C)) * X0 * X1
+            eq2 = C * X1 + C * X0 * X1
+            eq3 =  1
+        return [eq1, eq2, eq3]
+
+    def functional_theta(self, theta):
+        assert len(theta) == 3
+        new_ode = TVVdpODE(theta)
+        return new_ode.dx_dt_batch
+    
+
+class TVVdpODE2(ODE):
+    """
+    Time varying van der Pol equations
+    """
+
+    def __init__(self, param=None):
+        super().__init__(3, param)
+        self.mu, self.A0, self.w = self.param
+        self.init_high = [2., 2., 0.]    
+        self.init_low = [0., 0., 0.]
+        self.T = 80
+        self.std_base = 9.165338768841108 # NOTE: calcolato come RMSE di dX_list su 200 curve noise-free
+        self.name = 'TVVdpODE2'
+        self.positive=False
+
+    def _dx_dt(self, X, Y, t):
+        dxdt = self.mu * (1 - Y**2) * X - Y + self.A0 * t * np.cos(self.w * t)
+        dydt = X
+        dtdt = 1
+        return [dxdt, dydt, dtdt]
+
+    def get_default_param(self):
+        return 5., 0.5, 4
+
+    def get_expression(self):
+        var_dict = self.get_var_dict()
+        X0 = var_dict['X0']
+        X1 = var_dict['X1']
+        X2 = var_dict['X2']
+        C = var_dict['C']
+        if self.has_coef:
+            eq1 = (C + C*sympy.sin(C*X2)) * X0 + (C + C*sympy.Heaviside(X2-C)) * X0 * X1
+            eq2 = C * X1 + C * X0 * X1
+            eq3 = 1
+        else:
+            eq1 = (C + C*sympy.sin(C*X2)) * X0 + (C + C*sympy.Heaviside(X2-C)) * X0 * X1
+            eq2 = C * X1 + C * X0 * X1
+            eq3 =  1
+        return [eq1, eq2, eq3]
+
+    def functional_theta(self, theta):
+        assert len(theta) == 3
+        new_ode = TVVdpODE2(theta)
+        return new_ode.dx_dt_batch
+
+
+
+
+class ReactionDiffusion(ODE):
+    """
+    Reaction-Diffusion class for the HD test.
+    Note: this ODE is a fictitius ODe aiming to store the training information 
+    """
+
+    def __init__(self, param=None):
+        super().__init__(2, param)
+        self.a, self.b = self.param
+        self.init_high = [1., 1.]
+        self.init_low = [0., 0.]
+
+        self.positive = False
+
+        self.T = 20
+
+        self.name = 'ReactionDiffusion'
+        self.std_base = 0.3280983587226104
+
+    def _dx_dt(self, X, Y):
+        dxdt = 1 * X * Y
+        dydt = 1 * X * Y
+        return [dxdt, dydt]
+
+    def get_default_param(self):
+        return 1., 1.
+
+    def get_expression(self):
+        var_dict = self.get_var_dict()
+        X0 = var_dict['X0']
+        X1 = var_dict['X1']
+        C = var_dict['C']
+        if self.has_coef:
+            eq1 = C + 0*X0
+            eq2 = C + 0*X1
+        else:
+            eq1 = C + 0*X0
+            eq2 = C + 0*X1
+        return [eq1, eq2]
+
+    def functional_theta(self, theta):
+        assert len(theta) == 2
+        new_ode = ReactionDiffusion(theta)
+        return new_ode.dx_dt_batch
+    
+
+
+class DoubleGyre(ODE):
+    """
+    Double Gyre class for the HD test.
+    Note: this ODE is a fictitius ODE aiming to store the training information 
+    """
+
+    def __init__(self, param=None):
+        super().__init__(2, param)
+        self.a, self.b = self.param
+        self.init_high = [1., 1.]
+        self.init_low = [0., 0.]
+
+        self.positive = False
+
+        self.T = 10
+
+        self.name = 'DoubleGyre'
+        self.std_base = 1.0
+
+    def _dx_dt(self, X, Y):
+        dxdt = 1 + 0*X
+        dydt = 1 + 0*Y
+        return [dxdt, dydt]
+
+    def get_default_param(self):
+        return 1., 1.
+
+    def get_expression(self):
+        var_dict = self.get_var_dict()
+        X0 = var_dict['X0']
+        X1 = var_dict['X1']
+        C = var_dict['C']
+        if self.has_coef:
+            eq1 = C + 0*X0
+            eq2 = C + 0*X1
+        else:
+            eq1 = C + 0*X0
+            eq2 = C + 0*X1
+        return [eq1, eq2]
+
+    def functional_theta(self, theta):
+        assert len(theta) == 2
+        new_ode = DoubleGyre(theta)
+        return new_ode.dx_dt_batch

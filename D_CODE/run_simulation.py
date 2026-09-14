@@ -15,13 +15,17 @@ from . import data
 from .gp_utils import run_gp
 from .interpolate import num_diff, num_diff_gp
 
+from .gp_utils import run_gp_custom # ODE-free SR
+from .interpolate import num_diff_custom # ODE-free SR
 
 
-def run(ode_name, ode_param, x_id, freq, n_sample, noise_ratio, alg, seed, n_seed, T0, T, idx=0):
+def run(ode_name, ode_param, x_id, freq, n_sample, noise_ratio, alg, seed, n_seed, T0=0., T=15., idx=0):
 
     '''
     run SR-T and return the building blocks
-    RMK. questa versione funziona per un unico seed, per estenderla bisogna allargare la libreria candidata ad ogni seed, controllando però di non inserire doppioni tramite una funzione ausiliaria tipo get_building_blocks(est_gp, ode)
+    RMK. questa versione funziona per un unico seed, per estenderla bisogna allargare la libreria
+    candidata ad ogni seed, controllando però di non inserire doppioni tramite una funzione ausiliaria
+    tipo get_building_blocks(est_gp, ode)
     '''
 
     np.random.seed(999)
@@ -42,18 +46,84 @@ def run(ode_name, ode_param, x_id, freq, n_sample, noise_ratio, alg, seed, n_see
     if T0: # if T0>0, cut portion [0,T0] 
         yt = yt[T0*freq:, :, :]
     print('Dataset shape: ', np.shape(yt))
-    #print('Initial time instant: ', yt[0, 0, 2])
-    #print(yt[0:20, 0, 0]) # first trajectory
+    # print('Initial time instant: ', yt[0, 0, 2])
+    # print(yt[0:20, 0, 0]) # first trajectory
 
+    t0 = time.time() # - Time beginning
 
     # numerical differentiation:
+    value = 1 / freq
+    array = np.full(( int((T-T0)*freq) , 1, 1), value)
     if noise_sigma == 0:
-        dxdt_hat = (yt[1:, :, :] - yt[:-1, :, :]) / (dg.solver.t[1:] - dg.solver.t[:-1])[:, None, None]
+        # NOTE: con rumore = 0 questo comando potrebbe dare errore nel broadcast
+        # dxdt_hat = (yt[1:, :, :] - yt[:-1, :, :]) / (dg.solver.t[1:] - dg.solver.t[:-1])[:, None, None]
+        dxdt_hat = (yt[1:, :, :] - yt[:-1, :, :]) / array
     elif alg != 'gp':
         dxdt_hat = num_diff(yt, dg, alg, T0)
     else:
         dxdt_hat, xt_hat = num_diff_gp(yt, dg, ode)
-    #print('Numerical differentiation: Done.')
+    # print('Numerical differentiation: Done.')
+
+
+    # build dataset:
+    X_train = yt[:-1, :, :]
+    X_train = X_train.reshape(X_train.shape[0] * X_train.shape[1], X_train.shape[2])
+    y_train = dxdt_hat[:, :, x_id].flatten()
+    assert X_train.shape[0] == y_train.shape[0]
+
+    # import matplotlib.pyplot as plt
+    # t = np.arange(yt.shape[0])  # asse temporale (se non ne hai uno definito)
+    # plt.figure(figsize=(8, 4))
+    # for i in range(yt.shape[1]):  # loop sulle 50 traiettorie
+    #     plt.plot(t, yt[:, i, 0], alpha=0.5)  # prima dimensione (indice 0)
+
+    # plt.title("Traiettorie della prima dimensione")
+    # plt.xlabel("time step")
+    # plt.ylabel("x₁(t)")
+    # plt.grid(True, linestyle='--', alpha=0.3)
+    # plt.tight_layout()
+    # plt.show()
+
+
+    # run SR-T:
+    for s in range(seed, seed+n_seed): 
+
+        # find the ODE f:
+        f_hat, est_gp, building_blocks_lambda, function_names = run_gp(X_train, y_train, ode, x_id, s, idx=idx)
+
+    t1 = time.time() # - Time end
+    print("Total exectution time: ", t1-t0) # - Time print
+    
+    return building_blocks_lambda, function_names 
+
+
+
+#########################################################################################
+
+
+def run_custom(X_list, x_id, freq, dim_x, init_low, init_high, n_sample, alg, seed, n_seed, noise=False, config=None, T0=0., T=15., idx=0):
+
+    '''
+    Run SR-T and return the Building Blocks passing X_list data.
+    '''
+
+    np.random.seed(999)
+
+    # data storage: 
+    yt = np.stack(X_list, axis=1)
+    dc = data.DataCollector(yt, T, freq, n_sample, noise) 
+
+
+    if T0: # if T0>0, cut portion [0,T0] 
+        yt = yt[T0*freq:, :, :]
+    print('Dataset shape: ', np.shape(yt))
+    # print('Initial time instant: ', yt[0, 0, 2])
+    # print(yt[0:20, 0, 0]) # first trajectory
+
+
+    # numerical differentiation:
+    dxdt_hat = num_diff_custom(yt, dc, alg, T0)
+    # print('Numerical differentiation: Done.')
 
 
     # build dataset:
@@ -67,7 +137,7 @@ def run(ode_name, ode_param, x_id, freq, n_sample, noise_ratio, alg, seed, n_see
     for s in range(seed, seed+n_seed): 
 
         # find the ODE f:
-        f_hat, est_gp, building_blocks_lambda, function_names = run_gp(X_train, y_train, ode, x_id, s, idx=idx)
+        f_hat, est_gp, building_blocks_lambda, function_names = run_gp_custom(X_train, y_train, dim_x, init_low, init_high, config, s, idx)
 
     
     return building_blocks_lambda, function_names 

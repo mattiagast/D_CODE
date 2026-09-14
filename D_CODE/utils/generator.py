@@ -602,6 +602,7 @@ class Generator(object):
         elif isinstance(expr, sp.Integer):
             return [str(expr)]  # self.write_int(int(str(expr)))
         elif isinstance(expr, sp.Rational):
+            return [f"{expr.p}/{expr.q}"] # Avoid splitting
             return (
                 ["div"] + [str(expr.p)] + [str(expr.q)]
             )  # self.write_int(int(expr.p)) + self.write_int(int(expr.q))

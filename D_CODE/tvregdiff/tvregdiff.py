@@ -254,9 +254,15 @@ def TVRegDiff(data, itern, alph, u0=None, scale='small', ep=1e-6, dx=None,
             def linop(v): return (alph * L * v + AT(A(v)))
             linop = splin.LinearOperator((n, n), linop)
 
-            s, info_i = sparse.linalg.cg(
-                linop, g, x0=None, tol=cgtol, maxiter=cgmaxit,
-                callback=None, M=P, atol='legacy')
+            try:
+                s, info_i = sparse.linalg.cg(
+                    linop, g, x0=None, rtol=cgtol, atol=0.0, maxiter=cgmaxit,
+                    callback=None, M=P)
+            except TypeError:
+                # Nelle vecchie versioni era implementato cosi
+                s, info_i = sparse.linalg.cg(
+                    linop, g, x0=None, tol=cgtol, maxiter=cgmaxit,
+                    callback=None, M=P)
 
             if diagflag:
                 log_iteration(ii, s[0], u, g)
@@ -328,9 +334,16 @@ def TVRegDiff(data, itern, alph, u0=None, scale='small', ep=1e-6, dx=None,
             def linop(v): return (alph * L * v + AT(A(v)))
             linop = splin.LinearOperator((n, n), linop)
 
-            s, info_i = sparse.linalg.cg(
-                linop, -g, x0=None, tol=cgtol, maxiter=cgmaxit, callback=None,
-                M=P, atol='legacy')
+            try:
+                s, info_i = sparse.linalg.cg(
+                    linop, g, x0=None, rtol=cgtol, atol=0.0, maxiter=cgmaxit,
+                    callback=None, M=P)
+            except TypeError:
+                # Nelle vecchie versioni era implementato cosi
+                s, info_i = sparse.linalg.cg(
+                    linop, g, x0=None, tol=cgtol, maxiter=cgmaxit,
+                    callback=None, M=P)
+            
             if diagflag:
                 log_iteration(ii, s[0], u, g)
                 if (info_i > 0):
