@@ -167,29 +167,29 @@ def run_HD(ode_name, ode_param, x_id, freq, n_sample, noise_ratio, seed, n_seed,
 
     
     # Plot command
-    import matplotlib.pyplot as plt
-    t = np.arange(ode_data['x_hat'].shape[0])  # asse temporale (se non ne hai uno definito)
-    plt.figure(figsize=(8, 4))
-    for i in range(ode_data['x_hat'].shape[1]):  # loop sulle 50 traiettorie
-        plt.plot(t, ode_data['x_hat'][:, i, 0], alpha=0.5)  # prima dimensione (indice 0)
+    # import matplotlib.pyplot as plt
+    # t = np.arange(ode_data['x_hat'].shape[0])  # asse temporale (se non ne hai uno definito)
+    # plt.figure(figsize=(8, 4))
+    # for i in range(ode_data['x_hat'].shape[1]):  # loop sulle 50 traiettorie
+    #     plt.plot(t, ode_data['x_hat'][:, i, 0], alpha=0.5)  # prima dimensione (indice 0)
 
-    plt.title("Traiettorie della prima dimensione")
-    plt.xlabel("time step")
-    plt.ylabel("z1(t)")
-    plt.grid(True, linestyle='--', alpha=0.3)
-    plt.tight_layout()
-    plt.show()
+    # plt.title("Traiettorie della prima dimensione")
+    # plt.xlabel("time step")
+    # plt.ylabel("z1(t)")
+    # plt.grid(True, linestyle='--', alpha=0.3)
+    # plt.tight_layout()
+    # plt.show()
 
-    plt.figure(figsize=(8, 4))
-    for i in range(ode_data['x_hat'].shape[1]):  # loop sulle 50 traiettorie
-        plt.plot(t, ode_data['x_hat'][:, i, 1], alpha=0.5)  # prima dimensione (indice 0)
+    # plt.figure(figsize=(8, 4))
+    # for i in range(ode_data['x_hat'].shape[1]):  # loop sulle 50 traiettorie
+    #     plt.plot(t, ode_data['x_hat'][:, i, 1], alpha=0.5)  # prima dimensione (indice 0)
 
-    plt.title("Traiettorie della seconda dimensione")
-    plt.xlabel("time step")
-    plt.ylabel("z2(t)")
-    plt.grid(True, linestyle='--', alpha=0.3)
-    plt.tight_layout()
-    plt.show()
+    # plt.title("Traiettorie della seconda dimensione")
+    # plt.xlabel("time step")
+    # plt.ylabel("z2(t)")
+    # plt.grid(True, linestyle='--', alpha=0.3)
+    # plt.tight_layout()
+    # plt.show()
 
 
     # run D-CODE:
